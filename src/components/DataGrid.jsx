@@ -15,6 +15,7 @@ const EditableCell = ({ getValue, row, column, table }) => {
   const [isEditing, setIsEditing] = useState(false);
   const inputRef = useRef(null);
   const updateCell = useDataStore(state => state.updateCell);
+  const searchResults = useDataStore(state => state.searchResults);
 
   const onBlur = useCallback(() => {
     setIsEditing(false);
@@ -43,6 +44,44 @@ const EditableCell = ({ getValue, row, column, table }) => {
     setValue(initialValue);
   }, [initialValue]);
 
+  // Check if this cell is in search results
+  const matchInfo = useMemo(() => {
+    return searchResults.find(
+      result => result.rowIndex === row.index && result.columnId === column.id
+    );
+  }, [searchResults, row.index, column.id]);
+
+  // Highlight matched text
+  const renderHighlightedValue = useCallback(() => {
+    if (!matchInfo) {
+      return String(value ?? '');
+    }
+
+    const text = String(value ?? '');
+    const { matchIndex, matchedText, exact, score } = matchInfo;
+    
+    if (!matchedText || matchIndex === undefined) {
+      return text;
+    }
+
+    const before = text.substring(0, matchIndex);
+    const match = text.substring(matchIndex, matchIndex + matchedText.length);
+    const after = text.substring(matchIndex + matchedText.length);
+
+    return (
+      <>
+        {before}
+        <mark 
+          className={`highlight ${exact ? 'highlight-exact' : 'highlight-fuzzy'}`}
+          title={`Match: ${Math.round(score * 100)}% similarity`}
+        >
+          {match}
+        </mark>
+        {after}
+      </>
+    );
+  }, [value, matchInfo]);
+
   if (isEditing) {
     return (
       <input
@@ -60,10 +99,10 @@ const EditableCell = ({ getValue, row, column, table }) => {
   return (
     <div 
       onClick={onClick}
-      className="cell-value"
-      title={String(value ?? '')}
+      className={`cell-value ${matchInfo ? 'has-match' : ''}`}
+      title={matchInfo ? `Match: ${Math.round(matchInfo.score * 100)}%` : String(value ?? '')}
     >
-      {String(value ?? '')}
+      {renderHighlightedValue()}
     </div>
   );
 };
@@ -71,6 +110,7 @@ const EditableCell = ({ getValue, row, column, table }) => {
 const DataGrid = () => {
   const data = useDataStore(state => state.data);
   const columns = useDataStore(state => state.columns);
+  const searchResults = useDataStore(state => state.searchResults);
   const [sorting, setSorting] = useState([]);
   const [columnFilters, setColumnFilters] = useState([]);
   const [columnOrder, setColumnOrder] = useState([]);
@@ -182,6 +222,14 @@ const DataGrid = () => {
     <div className="data-grid-container">
       <div className="data-info">
         <span>{data.length.toLocaleString()} rows × {columns.length} columns</span>
+        {searchResults.length > 0 && (
+          <span className="search-results-badge">
+            🔍 {searchResults.length} match{searchResults.length !== 1 ? 'es' : ''} highlighted
+            {searchResults.some(r => !r.exact) && (
+              <span className="fuzzy-indicator"> (includes fuzzy matches)</span>
+            )}
+          </span>
+        )}
       </div>
       
       <div 

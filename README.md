@@ -8,6 +8,8 @@ A powerful, Google Sheets-like data grid built with React that handles large CSV
 - ⚡ **High Performance**: Virtualized rendering with TanStack Table and React Virtual
 - ✏️ **Inline Editing**: Edit cells directly in the grid with keyboard navigation
 - 🔍 **Bulk Search & Replace**: Search and replace across entire dataset or selected columns
+- 🎯 **Fuzzy Search**: Find matches even with typos and variations (e.g., "Jhon" matches "John")
+- 🔀 **Column Reordering**: Drag and drop columns to reorder them
 - 🎯 **Smart State Management**: Efficient updates with Zustand to prevent unnecessary re-renders
 - 📱 **Responsive**: Smooth scrolling with sticky headers and resizable columns
 
@@ -60,8 +62,17 @@ npm run build
 1. Open the Search & Replace panel
 2. Enter search term and replacement text
 3. Choose scope (all columns or specific columns)
-4. Select case sensitivity and match type
-5. Click "Replace All" or "Find & Replace"
+4. Select options:
+   - **Case sensitivity**: Exact case matching
+   - **Fuzzy search**: Allow typos and variations
+   - **Match sensitivity**: Adjust fuzzy matching threshold (30-95%)
+5. Click "Find Matches" to preview or "Replace All" to execute
+
+#### Fuzzy Search Examples
+- "Jhon" matches "John" (typo)
+- "acme" matches "Acme Corp" (partial match)
+- "newyork" matches "New York" (spacing variation)
+- Sensitivity slider: Higher % = stricter matching
 
 ## Performance Considerations
 
@@ -82,7 +93,7 @@ src/
 │   └── dataStore.js
 ├── utils/              # Utility functions
 │   ├── csvParser.js
-│   ├── searchReplace.js
+│   ├── fuzzySearch.js
 │   └── dataGenerator.js
 └── styles/             # CSS styles
     └── grid.css

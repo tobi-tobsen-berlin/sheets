@@ -9,11 +9,15 @@ const SearchReplace = () => {
     selectedColumns,
     columns,
     isSearchOpen,
+    fuzzySearch,
+    fuzzyThreshold,
     setSearchTerm,
     setReplaceTerm,
     setCaseSensitive,
     setSelectedColumns,
     setIsSearchOpen,
+    setFuzzySearch,
+    setFuzzyThreshold,
     findMatches,
     replaceAll,
   } = useDataStore();
@@ -26,8 +30,16 @@ const SearchReplace = () => {
     const matches = findMatches();
     setMatchCount(matches.length);
     setReplaceCount(0);
-    setMessage(`Found ${matches.length} match(es)`);
-  }, [findMatches]);
+    
+    const exactMatches = matches.filter(m => m.exact).length;
+    const fuzzyMatches = matches.length - exactMatches;
+    
+    let msg = `Found ${matches.length} match(es)`;
+    if (fuzzySearch && fuzzyMatches > 0) {
+      msg += ` (${exactMatches} exact, ${fuzzyMatches} fuzzy)`;
+    }
+    setMessage(msg);
+  }, [findMatches, fuzzySearch]);
 
   const handleReplaceAll = useCallback(() => {
     if (!searchTerm) {
@@ -40,6 +52,12 @@ const SearchReplace = () => {
     setMatchCount(0);
     setMessage(`Replaced ${count} occurrence(s)`);
   }, [searchTerm, replaceTerm, replaceAll]);
+
+  const handleClearHighlights = useCallback(() => {
+    useDataStore.setState({ searchResults: [] });
+    setMatchCount(0);
+    setMessage('');
+  }, []);
 
   const handleColumnToggle = useCallback((columnId) => {
     setSelectedColumns(
@@ -114,6 +132,40 @@ const SearchReplace = () => {
         </div>
 
         <div className="form-group">
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={fuzzySearch}
+              onChange={(e) => setFuzzySearch(e.target.checked)}
+            />
+            Fuzzy search (allows typos and variations)
+          </label>
+        </div>
+
+        {fuzzySearch && (
+          <div className="form-group">
+            <label htmlFor="fuzzy-threshold">
+              Match sensitivity: {Math.round(fuzzyThreshold * 100)}%
+              <small className="form-hint"> (Higher = stricter matching)</small>
+            </label>
+            <input
+              id="fuzzy-threshold"
+              type="range"
+              min="0.3"
+              max="0.95"
+              step="0.05"
+              value={fuzzyThreshold}
+              onChange={(e) => setFuzzyThreshold(parseFloat(e.target.value))}
+              className="range-slider"
+            />
+            <div className="range-labels">
+              <span>Loose (30%)</span>
+              <span>Strict (95%)</span>
+            </div>
+          </div>
+        )}
+
+        <div className="form-group">
           <label>Search in columns:</label>
           <div className="column-selector">
             <button 
@@ -158,6 +210,15 @@ const SearchReplace = () => {
             Replace All
           </button>
         </div>
+        
+        {matchCount > 0 && (
+          <button 
+            className="btn btn-secondary btn-clear"
+            onClick={handleClearHighlights}
+          >
+            Clear Highlights
+          </button>
+        )}
 
         {message && (
           <div className={`message ${replaceCount > 0 ? 'message-success' : 'message-info'}`}>
