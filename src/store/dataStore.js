@@ -19,6 +19,8 @@ const useDataStore = create((set, get) => ({
   // UI state
   isSearchOpen: false,
   isLoading: false,
+  isSearching: false,
+  searchProgress: 0,
   
   // Actions
   setData: (newData) => {
@@ -74,7 +76,7 @@ const useDataStore = create((set, get) => ({
   setFuzzySearch: (value) => set({ fuzzySearch: value }),
   setFuzzyThreshold: (value) => set({ fuzzyThreshold: value }),
   
-  findMatches: () => {
+  findMatches: async () => {
     const { data, searchTerm, caseSensitive, selectedColumns, columns, fuzzySearch, fuzzyThreshold } = get();
     
     console.log('🔍 Search Debug:', {
@@ -88,9 +90,18 @@ const useDataStore = create((set, get) => ({
     });
     
     if (!searchTerm) {
-      set({ searchResults: [] });
+      set({ searchResults: [], isSearching: false, searchProgress: 0 });
       return [];
     }
+    
+    // Start search with progress
+    console.log('🚀 Setting isSearching to TRUE, searchProgress to 0');
+    set({ isSearching: true, searchProgress: 0 });
+    
+    // Small delay to ensure UI updates
+    console.log('⏳ Waiting 10ms for UI to update...');
+    await new Promise(resolve => setTimeout(resolve, 10));
+    console.log('✅ Starting search loop...');
     
     const results = [];
     const columnsToSearch = selectedColumns.length > 0 
@@ -99,22 +110,36 @@ const useDataStore = create((set, get) => ({
     
     console.log('📋 Columns to search:', columnsToSearch);
     
+    const totalRows = data.length;
+    // Make updates MORE frequent for better visibility
+    const updateInterval = Math.max(1, Math.floor(totalRows / 100)); // Update progress 100 times
+    const uiUpdateInterval = Math.max(5, Math.floor(totalRows / 50)); // UI refresh 50 times
+    
+    console.log('📊 Progress update intervals:', { 
+      updateInterval, 
+      uiUpdateInterval, 
+      totalRows,
+      expectedUpdates: Math.ceil(totalRows / updateInterval)
+    });
+    
     if (fuzzySearch) {
       console.log('✨ Using FUZZY search mode');
-      // Fuzzy search mode
-      data.forEach((row, rowIndex) => {
-        columnsToSearch.forEach((columnId) => {
+      console.log(`🔄 Starting loop through ${totalRows} rows...`);
+      
+      // Fuzzy search mode with progress
+      for (let rowIndex = 0; rowIndex < data.length; rowIndex++) {
+        // Debug: Log first few iterations
+        if (rowIndex < 5) {
+          console.log(`  → Processing row ${rowIndex}...`);
+        }
+        
+        const row = data[rowIndex];
+        
+        for (const columnId of columnsToSearch) {
           const cellValue = String(row[columnId] || '');
           const match = fuzzyMatch(cellValue, searchTerm, fuzzyThreshold, caseSensitive);
           
           if (match && match.matched) {
-            console.log('✅ Found match:', {
-              rowIndex,
-              columnId,
-              cellValue,
-              score: match.score,
-              exact: match.exact
-            });
             results.push({
               rowIndex,
               columnId,
@@ -125,18 +150,40 @@ const useDataStore = create((set, get) => ({
               matchedText: match.matchedText
             });
           }
-        });
-      });
+        }
+        
+        // Update progress more frequently
+        if (rowIndex % updateInterval === 0 || rowIndex === totalRows - 1) {
+          const progress = Math.min(99, Math.round(((rowIndex + 1) / totalRows) * 100));
+          console.log(`📊 Progress update (FUZZY): ${progress}% (row ${rowIndex + 1}/${totalRows})`);
+          set({ searchProgress: progress });
+        }
+        
+        // Allow UI to update more often
+        if (rowIndex % uiUpdateInterval === 0) {
+          console.log(`⏸️ UI refresh at row ${rowIndex} (FUZZY mode)`);
+          await new Promise(resolve => setTimeout(resolve, 1));
+        }
+      }
       
       // Sort by score (best matches first)
       results.sort((a, b) => b.score - a.score);
     } else {
       console.log('📝 Using EXACT search mode');
-      // Exact search mode
+      console.log(`🔄 Starting loop through ${totalRows} rows...`);
+      
+      // Exact search mode with progress
       const searchValue = caseSensitive ? searchTerm : searchTerm.toLowerCase();
       
-      data.forEach((row, rowIndex) => {
-        columnsToSearch.forEach((columnId) => {
+      for (let rowIndex = 0; rowIndex < data.length; rowIndex++) {
+        // Debug: Log first few iterations
+        if (rowIndex < 5) {
+          console.log(`  → Processing row ${rowIndex}...`);
+        }
+        
+        const row = data[rowIndex];
+        
+        for (const columnId of columnsToSearch) {
           const cellValue = String(row[columnId] || '');
           const compareValue = caseSensitive ? cellValue : cellValue.toLowerCase();
           
@@ -150,8 +197,21 @@ const useDataStore = create((set, get) => ({
               exact: true
             });
           }
-        });
-      });
+        }
+        
+        // Update progress more frequently
+        if (rowIndex % updateInterval === 0 || rowIndex === totalRows - 1) {
+          const progress = Math.min(99, Math.round(((rowIndex + 1) / totalRows) * 100));
+          console.log(`📊 Progress update: ${progress}% (row ${rowIndex + 1}/${totalRows})`);
+          set({ searchProgress: progress });
+        }
+        
+        // Allow UI to update more often
+        if (rowIndex % uiUpdateInterval === 0) {
+          console.log(`⏸️ UI refresh at row ${rowIndex}`);
+          await new Promise(resolve => setTimeout(resolve, 1));
+        }
+      }
     }
     
     console.log(`🎯 Total matches found: ${results.length}`);
@@ -159,7 +219,8 @@ const useDataStore = create((set, get) => ({
       console.log('First 3 matches:', results.slice(0, 3));
     }
     
-    set({ searchResults: results });
+    console.log('✅ Setting isSearching to FALSE and searchProgress to 100');
+    set({ searchResults: results, isSearching: false, searchProgress: 100 });
     return results;
   },
   

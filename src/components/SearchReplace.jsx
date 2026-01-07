@@ -11,6 +11,9 @@ const SearchReplace = () => {
     isSearchOpen,
     fuzzySearch,
     fuzzyThreshold,
+    isSearching,
+    searchProgress,
+    data,
     setSearchTerm,
     setReplaceTerm,
     setCaseSensitive,
@@ -25,20 +28,47 @@ const SearchReplace = () => {
   const [matchCount, setMatchCount] = useState(0);
   const [replaceCount, setReplaceCount] = useState(0);
   const [message, setMessage] = useState('');
+  const panelRef = React.useRef(null);
 
-  const handleFind = useCallback(() => {
-    const matches = findMatches();
-    setMatchCount(matches.length);
-    setReplaceCount(0);
-    
-    const exactMatches = matches.filter(m => m.exact).length;
-    const fuzzyMatches = matches.length - exactMatches;
-    
-    let msg = `Found ${matches.length} match(es)`;
-    if (fuzzySearch && fuzzyMatches > 0) {
-      msg += ` (${exactMatches} exact, ${fuzzyMatches} fuzzy)`;
+  // Debug: Log when isSearching changes
+  React.useEffect(() => {
+    console.log('🎯 SearchReplace - isSearching changed:', isSearching, 'progress:', searchProgress);
+  }, [isSearching, searchProgress]);
+
+  // Auto-scroll to top when search starts
+  React.useEffect(() => {
+    if (isSearching && panelRef.current) {
+      console.log('📜 Scrolling dialog to top...');
+      panelRef.current.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
     }
-    setMessage(msg);
+  }, [isSearching]);
+
+  const handleFind = useCallback(async () => {
+    console.log('🔍 Starting search, isSearching should be true now');
+    setMessage('Searching...');
+    
+    try {
+      const matches = await findMatches();
+      setMatchCount(matches.length);
+      setReplaceCount(0);
+      
+      const exactMatches = matches.filter(m => m.exact).length;
+      const fuzzyMatches = matches.length - exactMatches;
+      
+      let msg = `Found ${matches.length} match(es)`;
+      if (fuzzySearch && fuzzyMatches > 0) {
+        msg += ` (${exactMatches} exact, ${fuzzyMatches} fuzzy)`;
+      }
+      setMessage(msg);
+    } catch (error) {
+      console.error('Search error:', error);
+      setMessage('Search failed');
+    }
+    
+    console.log('🔍 Search completed, isSearching should be false now');
   }, [findMatches, fuzzySearch]);
 
   const handleReplaceAll = useCallback(() => {
@@ -83,7 +113,7 @@ const SearchReplace = () => {
   }
 
   return (
-    <div className="search-replace-panel">
+    <div className="search-replace-panel" ref={panelRef}>
       <div className="search-header">
         <h3>Search & Replace</h3>
         <button 
@@ -94,6 +124,25 @@ const SearchReplace = () => {
           ×
         </button>
       </div>
+
+      {/* Progress bar at the top */}
+      {isSearching && (
+        <div className="search-progress-top">
+          <div className="progress-header">
+            <span className="progress-label">🔍 Searching...</span>
+            <span className="progress-percentage">{searchProgress}%</span>
+          </div>
+          <div className="progress-bar-container">
+            <div 
+              className="progress-bar-fill"
+              style={{ width: `${searchProgress}%` }}
+            />
+          </div>
+          <div className="progress-info-compact">
+            {Math.round((searchProgress / 100) * data.length).toLocaleString()} / {data.length.toLocaleString()} rows
+          </div>
+        </div>
+      )}
 
       <div className="search-form">
         <div className="form-group">
@@ -194,24 +243,29 @@ const SearchReplace = () => {
           </small>
         </div>
 
+        {/* Debug info - remove later */}
+        <div style={{ fontSize: '0.7rem', color: '#666', marginBottom: '0.5rem' }}>
+          Debug: isSearching={String(isSearching)}, progress={searchProgress}%
+        </div>
+
         <div className="button-group">
           <button 
             className="btn btn-secondary"
             onClick={handleFind}
-            disabled={!searchTerm}
+            disabled={!searchTerm || isSearching}
           >
-            Find Matches
+            {isSearching ? 'Searching...' : 'Find Matches'}
           </button>
           <button 
             className="btn btn-primary"
             onClick={handleReplaceAll}
-            disabled={!searchTerm}
+            disabled={!searchTerm || isSearching}
           >
             Replace All
           </button>
         </div>
         
-        {matchCount > 0 && (
+        {matchCount > 0 && !isSearching && (
           <button 
             className="btn btn-secondary btn-clear"
             onClick={handleClearHighlights}
@@ -220,7 +274,7 @@ const SearchReplace = () => {
           </button>
         )}
 
-        {message && (
+        {message && !isSearching && (
           <div className={`message ${replaceCount > 0 ? 'message-success' : 'message-info'}`}>
             {message}
           </div>
