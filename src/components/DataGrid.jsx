@@ -110,6 +110,7 @@ const EditableCell = ({ getValue, row, column, table }) => {
 const DataGrid = () => {
   const data = useDataStore(state => state.data);
   const columns = useDataStore(state => state.columns);
+  const hiddenColumns = useDataStore(state => state.hiddenColumns);
   const searchResults = useDataStore(state => state.searchResults);
   const [sorting, setSorting] = useState([]);
   const [columnFilters, setColumnFilters] = useState([]);
@@ -118,20 +119,33 @@ const DataGrid = () => {
   
   const tableContainerRef = useRef(null);
 
+  // Filter out hidden columns
+  const visibleColumns = useMemo(() => {
+    return columns.filter(col => !hiddenColumns.includes(col.id));
+  }, [columns, hiddenColumns]);
+
   // Initialize column order when columns change
   React.useEffect(() => {
-    if (columns.length > 0 && columnOrder.length === 0) {
-      setColumnOrder(columns.map(col => col.id));
+    if (visibleColumns.length > 0 && columnOrder.length === 0) {
+      setColumnOrder(visibleColumns.map(col => col.id));
     }
-  }, [columns, columnOrder.length]);
+  }, [visibleColumns, columnOrder.length]);
 
-  // Add editable cell to all columns
+  // Update column order when columns are hidden/shown
+  React.useEffect(() => {
+    if (visibleColumns.length > 0) {
+      const visibleIds = visibleColumns.map(col => col.id);
+      setColumnOrder(prev => prev.filter(id => visibleIds.includes(id)));
+    }
+  }, [visibleColumns]);
+
+  // Add editable cell to visible columns only
   const editableColumns = useMemo(() => {
-    return columns.map(col => ({
+    return visibleColumns.map(col => ({
       ...col,
       cell: EditableCell
     }));
-  }, [columns]);
+  }, [visibleColumns]);
 
   const table = useReactTable({
     data,

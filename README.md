@@ -1,6 +1,6 @@
-# High-Performance React Data Grid
+# Data grid frontend prototype
 
-A powerful, Google Sheets-like data grid built with React that handles large CSV datasets (10k-100k+ rows) with ease.
+Data grid frontend prototype built with React that handles large CSV datasets (10k-100k+ rows) with ease.
 
 ## Features
 

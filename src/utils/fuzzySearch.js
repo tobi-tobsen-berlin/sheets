@@ -1,5 +1,9 @@
 /**
  * Fuzzy search utilities
+ * 
+ * NOTE: The main application now uses Fuse.js (https://github.com/krisk/fuse)
+ * for fuzzy searching in dataStore.js. These utilities are kept for reference
+ * or potential other use cases.
  */
 
 /**

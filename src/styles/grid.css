@@ -5,8 +5,8 @@
 }
 
 :root {
-  --primary-color: #3b82f6;
-  --primary-hover: #2563eb;
+  --primary-color: #304BDA;
+  --primary-hover: #586edb;
   --secondary-color: #6b7280;
   --success-color: #10b981;
   --border-color: #e5e7eb;
@@ -32,14 +32,6 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-}
-
-/* Header */
-.app-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 2rem 2rem 1.5rem;
-  box-shadow: var(--shadow-lg);
 }
 
 .app-header h1 {
@@ -123,7 +115,6 @@ body {
 
 .btn-primary:hover:not(:disabled) {
   background: var(--primary-hover);
-  transform: translateY(-1px);
   box-shadow: var(--shadow);
 }
 
@@ -194,7 +185,7 @@ body {
 
 /* Data Grid */
 .data-grid-container {
-  height: calc(100vh - 280px);
+  height: calc(100vh - 80px);
   display: flex;
   flex-direction: column;
 }
@@ -236,6 +227,7 @@ body {
     opacity: 0;
     transform: translateY(-5px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -344,10 +336,19 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  line-height: 1.4;
 }
 
+/* Better display for long text cells */
 .cell-value:hover {
   background: rgba(59, 130, 246, 0.05);
+  white-space: normal;
+  word-wrap: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 5;
+  position: relative;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 /* Search Highlight Styles */
@@ -580,6 +581,7 @@ body {
     opacity: 0;
     transform: translateY(-20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -625,6 +627,7 @@ body {
     opacity: 0;
     transform: translateY(-10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -686,9 +689,12 @@ body {
 }
 
 @keyframes pulse {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 1;
   }
+
   50% {
     opacity: 0.7;
   }
@@ -848,4 +854,128 @@ body {
     grid-template-columns: 1fr;
     gap: 1rem;
   }
+}
+/* Column Selector */
+.column-selector {
+  position: relative;
+}
+
+.column-selector-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0.375rem;
+  background: white;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.column-selector-button:hover {
+  background: var(--hover-bg);
+  border-color: var(--secondary-color);
+}
+
+.column-selector-button svg {
+  flex-shrink: 0;
+}
+
+.column-selector-dropdown {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  min-width: 250px;
+  background: white;
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  box-shadow: var(--shadow-lg);
+  z-index: 100;
+  max-height: 400px;
+  display: flex;
+  flex-direction: column;
+}
+
+.column-selector-header {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+  gap: 0.5rem;
+}
+
+.column-selector-header .link-button {
+  padding: 0.25rem 0.5rem;
+  border: none;
+  background: none;
+  color: var(--primary-color);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 0.25rem;
+  transition: all 0.2s;
+}
+
+.column-selector-header .link-button:hover {
+  background: var(--hover-bg);
+  color: var(--primary-hover);
+}
+
+.column-selector-list {
+  overflow-y: auto;
+  max-height: 320px;
+  padding: 0.5rem;
+}
+
+.column-selector-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  cursor: pointer;
+  border-radius: 0.25rem;
+  transition: background 0.2s;
+  font-size: 0.875rem;
+}
+
+.column-selector-item:hover {
+  background: var(--hover-bg);
+}
+
+.column-selector-item input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.column-selector-item span {
+  flex: 1;
+  user-select: none;
+}
+
+/* Hidden columns in search/replace */
+.column-item.column-hidden {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.column-item.column-hidden span {
+  text-decoration: line-through;
+}
+
+.hidden-badge {
+  margin-left: auto;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  background: var(--hover-bg);
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  font-weight: 500;
+}
+
+.column-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }

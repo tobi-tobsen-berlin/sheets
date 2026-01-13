@@ -8,6 +8,7 @@ const SearchReplace = () => {
     caseSensitive,
     selectedColumns,
     columns,
+    hiddenColumns,
     isSearchOpen,
     fuzzySearch,
     fuzzyThreshold,
@@ -98,8 +99,20 @@ const SearchReplace = () => {
   }, [selectedColumns, setSelectedColumns]);
 
   const handleSelectAll = useCallback(() => {
-    setSelectedColumns(selectedColumns.length === columns.length ? [] : columns.map(col => col.id));
-  }, [selectedColumns, columns, setSelectedColumns]);
+    // Only select/deselect visible columns
+    const visibleColumns = columns.filter(col => !hiddenColumns.includes(col.id));
+    const visibleIds = visibleColumns.map(col => col.id);
+    const allVisibleSelected = visibleIds.every(id => selectedColumns.length === 0 || selectedColumns.includes(id));
+    
+    if (allVisibleSelected) {
+      // Deselect all visible, keep hidden ones selected
+      setSelectedColumns(selectedColumns.filter(id => hiddenColumns.includes(id)));
+    } else {
+      // Select all visible
+      const newSelection = [...new Set([...selectedColumns, ...visibleIds])];
+      setSelectedColumns(newSelection);
+    }
+  }, [selectedColumns, columns, hiddenColumns, setSelectedColumns]);
 
   if (!isSearchOpen) {
     return (
@@ -221,25 +234,36 @@ const SearchReplace = () => {
               className="btn btn-sm"
               onClick={handleSelectAll}
             >
-              {selectedColumns.length === columns.length ? 'Deselect All' : 'Select All'}
+              Select/Deselect All Visible
             </button>
             <div className="column-list">
-              {columns.map((col) => (
-                <label key={col.id} className="checkbox-label column-item">
-                  <input
-                    type="checkbox"
-                    checked={selectedColumns.length === 0 || selectedColumns.includes(col.id)}
-                    onChange={() => handleColumnToggle(col.id)}
-                  />
-                  {col.header}
-                </label>
-              ))}
+              {columns.map((col) => {
+                const isHidden = hiddenColumns.includes(col.id);
+                const isChecked = selectedColumns.length === 0 || selectedColumns.includes(col.id);
+                
+                return (
+                  <label 
+                    key={col.id} 
+                    className={`checkbox-label column-item ${isHidden ? 'column-hidden' : ''}`}
+                    title={isHidden ? 'Column is hidden' : ''}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => handleColumnToggle(col.id)}
+                      disabled={isHidden}
+                    />
+                    <span>{col.header}</span>
+                    {isHidden && <span className="hidden-badge">Hidden</span>}
+                  </label>
+                );
+              })}
             </div>
           </div>
           <small className="form-hint">
             {selectedColumns.length === 0 
-              ? 'All columns selected' 
-              : `${selectedColumns.length} column(s) selected`}
+              ? `All visible columns selected (${columns.length - hiddenColumns.length})` 
+              : `${selectedColumns.filter(id => !hiddenColumns.includes(id)).length} visible column(s) selected`}
           </small>
         </div>
 

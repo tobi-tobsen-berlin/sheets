@@ -1,12 +1,16 @@
 import { create } from 'zustand';
-import { fuzzyMatch } from '../utils/fuzzySearch';
+import Fuse from 'fuse.js';
+import { similarityScore } from '../utils/fuzzySearch';
 
 const useDataStore = create((set, get) => ({
   // Core data
   data: [],
   columns: [],
   originalData: [],
-  
+
+  // Column visibility
+  hiddenColumns: [],
+
   // Search state
   searchTerm: '',
   replaceTerm: '',
@@ -15,23 +19,25 @@ const useDataStore = create((set, get) => ({
   selectedColumns: [],
   fuzzySearch: false,
   fuzzyThreshold: 0.6, // 0-1, where 1 is exact match (0.6 = 60% similarity)
-  
+
   // UI state
   isSearchOpen: false,
   isLoading: false,
   isSearching: false,
   searchProgress: 0,
-  
+
   // Actions
   setData: (newData) => {
-    set({ 
-      data: newData, 
-      originalData: JSON.parse(JSON.stringify(newData)) 
+    set({
+      data: newData,
+      originalData: JSON.parse(JSON.stringify(newData))
     });
   },
-  
+
   setColumns: (cols) => set({ columns: cols }),
-  
+
+  setHiddenColumns: (cols) => set({ hiddenColumns: cols }),
+
   updateCell: (rowIndex, columnId, value) => {
     set((state) => {
       const newData = [...state.data];
@@ -42,7 +48,7 @@ const useDataStore = create((set, get) => ({
       return { data: newData };
     });
   },
-  
+
   updateRow: (rowIndex, rowData) => {
     set((state) => {
       const newData = [...state.data];
@@ -50,7 +56,7 @@ const useDataStore = create((set, get) => ({
       return { data: newData };
     });
   },
-  
+
   bulkUpdate: (updates) => {
     // updates: Array of { rowIndex, columnId, value }
     set((state) => {
@@ -66,7 +72,7 @@ const useDataStore = create((set, get) => ({
       return { data: newData };
     });
   },
-  
+
   // Search & Replace
   setSearchTerm: (term) => set({ searchTerm: term }),
   setReplaceTerm: (term) => set({ replaceTerm: term }),
@@ -75,192 +81,233 @@ const useDataStore = create((set, get) => ({
   setIsSearchOpen: (value) => set({ isSearchOpen: value }),
   setFuzzySearch: (value) => set({ fuzzySearch: value }),
   setFuzzyThreshold: (value) => set({ fuzzyThreshold: value }),
-  
+
   findMatches: async () => {
     const { data, searchTerm, caseSensitive, selectedColumns, columns, fuzzySearch, fuzzyThreshold } = get();
-    
-    console.log('🔍 Search Debug:', {
-      searchTerm,
-      fuzzySearch,
-      fuzzyThreshold,
-      caseSensitive,
-      selectedColumns: selectedColumns.length > 0 ? selectedColumns : 'ALL',
-      totalRows: data.length,
-      totalColumns: columns.length
-    });
-    
+
     if (!searchTerm) {
       set({ searchResults: [], isSearching: false, searchProgress: 0 });
       return [];
     }
-    
-    // Start search with progress
-    console.log('🚀 Setting isSearching to TRUE, searchProgress to 0');
+
     set({ isSearching: true, searchProgress: 0 });
-    
-    // Small delay to ensure UI updates
-    console.log('⏳ Waiting 10ms for UI to update...');
     await new Promise(resolve => setTimeout(resolve, 10));
-    console.log('✅ Starting search loop...');
-    
+
     const results = [];
-    const columnsToSearch = selectedColumns.length > 0 
-      ? selectedColumns 
+    const columnsToSearch = selectedColumns.length > 0
+      ? selectedColumns
       : columns.map(col => col.id);
-    
-    console.log('📋 Columns to search:', columnsToSearch);
-    
-    const totalRows = data.length;
-    // Make updates MORE frequent for better visibility
-    const updateInterval = Math.max(1, Math.floor(totalRows / 100)); // Update progress 100 times
-    const uiUpdateInterval = Math.max(5, Math.floor(totalRows / 50)); // UI refresh 50 times
-    
-    console.log('📊 Progress update intervals:', { 
-      updateInterval, 
-      uiUpdateInterval, 
-      totalRows,
-      expectedUpdates: Math.ceil(totalRows / updateInterval)
-    });
-    
+
     if (fuzzySearch) {
-      console.log('✨ Using FUZZY search mode');
-      console.log(`🔄 Starting loop through ${totalRows} rows...`);
-      
-      // Fuzzy search mode with progress
+      // Search each cell individually
+      const totalCells = data.length * columnsToSearch.length;
+      let processedCells = 0;
+      const updateInterval = Math.max(1, Math.floor(totalCells / 50));
+
       for (let rowIndex = 0; rowIndex < data.length; rowIndex++) {
-        // Debug: Log first few iterations
-        if (rowIndex < 5) {
-          console.log(`  → Processing row ${rowIndex}...`);
-        }
-        
         const row = data[rowIndex];
-        
+
         for (const columnId of columnsToSearch) {
           const cellValue = String(row[columnId] || '');
-          const match = fuzzyMatch(cellValue, searchTerm, fuzzyThreshold, caseSensitive);
-          
-          if (match && match.matched) {
+          processedCells++;
+
+          if (!cellValue) {
+            // Update progress for empty cells too
+            if (processedCells % updateInterval === 0) {
+              const progress = Math.min(99, Math.round((processedCells / totalCells) * 100));
+              set({ searchProgress: progress });
+            }
+            continue;
+          }
+
+          // Create Fuse instance for this single cell
+          const fuse = new Fuse([cellValue], {
+            includeScore: true,
+            includeMatches: true,
+            threshold: Math.min(0.3, 1 - fuzzyThreshold),
+            ignoreLocation: true,
+            isCaseSensitive: caseSensitive,
+            minMatchCharLength: 1
+          });
+
+          const cellResults = fuse.search(searchTerm);
+
+          if (cellResults.length > 0) {
+            const result = cellResults[0];
+            const fuseScore = 1 - (result.score || 0);
+
+            // Fuse.js found a match, now find the best matching substring
+            const compareValue = caseSensitive ? cellValue : cellValue.toLowerCase();
+            const searchValue = caseSensitive ? searchTerm : searchTerm.toLowerCase();
+
+            let matchIndex, matchedText, finalScore;
+
+            // First try exact substring match
+            if (compareValue.includes(searchValue)) {
+              matchIndex = compareValue.indexOf(searchValue);
+              matchedText = cellValue.substring(matchIndex, matchIndex + searchValue.length);
+              finalScore = 1.0;
+            } else {
+              // Optimized sliding window - coarser steps for speed
+              const searchLen = searchTerm.length;
+              let bestScore = 0;
+              let bestStart = 0;
+              let bestLength = searchLen;
+
+              // Reduced window range and use step size for speed
+              const minLen = Math.floor(searchLen * 0.7);
+              const maxLen = Math.min(cellValue.length, Math.ceil(searchLen * 1.5));
+              const stepSize = Math.max(1, Math.floor(searchLen * 0.1)); // Skip some positions
+
+              for (let len = minLen; len <= maxLen; len += stepSize) {
+                for (let i = 0; i <= cellValue.length - len; i += stepSize) {
+                  const substring = cellValue.substring(i, i + len);
+                  const subLower = caseSensitive ? substring : substring.toLowerCase();
+                  const score = similarityScore(subLower, searchValue);
+
+                  if (score > bestScore) {
+                    bestScore = score;
+                    bestStart = i;
+                    bestLength = len;
+                  }
+
+                  // Early exit if we found a very good match
+                  if (score > 0.95) break;
+                }
+                if (bestScore > 0.95) break;
+              }
+
+              matchIndex = bestStart;
+              matchedText = cellValue.substring(bestStart, bestStart + bestLength);
+              finalScore = Math.max(bestScore, fuseScore);
+            }
+
             results.push({
               rowIndex,
               columnId,
               value: cellValue,
-              matchIndex: match.matchIndex,
-              score: match.score,
-              exact: match.exact,
-              matchedText: match.matchedText
+              matchIndex,
+              score: finalScore,
+              exact: false,
+              matchedText
             });
           }
-        }
-        
-        // Update progress more frequently
-        if (rowIndex % updateInterval === 0 || rowIndex === totalRows - 1) {
-          const progress = Math.min(99, Math.round(((rowIndex + 1) / totalRows) * 100));
-          console.log(`📊 Progress update (FUZZY): ${progress}% (row ${rowIndex + 1}/${totalRows})`);
-          set({ searchProgress: progress });
-        }
-        
-        // Allow UI to update more often
-        if (rowIndex % uiUpdateInterval === 0) {
-          console.log(`⏸️ UI refresh at row ${rowIndex} (FUZZY mode)`);
-          await new Promise(resolve => setTimeout(resolve, 1));
+
+          // Update progress per cell
+          if (processedCells % updateInterval === 0 || processedCells === totalCells) {
+            const progress = Math.min(99, Math.round((processedCells / totalCells) * 100));
+            set({ searchProgress: progress });
+          }
         }
       }
-      
-      // Sort by score (best matches first)
+
       results.sort((a, b) => b.score - a.score);
     } else {
-      console.log('📝 Using EXACT search mode');
-      console.log(`🔄 Starting loop through ${totalRows} rows...`);
-      
-      // Exact search mode with progress
+      // Exact search mode
       const searchValue = caseSensitive ? searchTerm : searchTerm.toLowerCase();
-      
+      const updateInterval = Math.max(1, Math.floor(data.length / 100));
+
       for (let rowIndex = 0; rowIndex < data.length; rowIndex++) {
-        // Debug: Log first few iterations
-        if (rowIndex < 5) {
-          console.log(`  → Processing row ${rowIndex}...`);
-        }
-        
         const row = data[rowIndex];
-        
+
         for (const columnId of columnsToSearch) {
           const cellValue = String(row[columnId] || '');
           const compareValue = caseSensitive ? cellValue : cellValue.toLowerCase();
-          
+
           if (compareValue.includes(searchValue)) {
+            const matchIndex = compareValue.indexOf(searchValue);
+            const matchedText = cellValue.substring(matchIndex, matchIndex + searchValue.length);
+
             results.push({
               rowIndex,
               columnId,
               value: cellValue,
-              matchIndex: compareValue.indexOf(searchValue),
+              matchIndex,
               score: 1.0,
-              exact: true
+              exact: true,
+              matchedText
             });
           }
         }
-        
-        // Update progress more frequently
-        if (rowIndex % updateInterval === 0 || rowIndex === totalRows - 1) {
-          const progress = Math.min(99, Math.round(((rowIndex + 1) / totalRows) * 100));
-          console.log(`📊 Progress update: ${progress}% (row ${rowIndex + 1}/${totalRows})`);
+
+        if (rowIndex % updateInterval === 0 || rowIndex === data.length - 1) {
+          const progress = Math.min(99, Math.round(((rowIndex + 1) / data.length) * 100));
           set({ searchProgress: progress });
-        }
-        
-        // Allow UI to update more often
-        if (rowIndex % uiUpdateInterval === 0) {
-          console.log(`⏸️ UI refresh at row ${rowIndex}`);
-          await new Promise(resolve => setTimeout(resolve, 1));
         }
       }
     }
-    
-    console.log(`🎯 Total matches found: ${results.length}`);
-    if (results.length > 0) {
-      console.log('First 3 matches:', results.slice(0, 3));
-    }
-    
-    console.log('✅ Setting isSearching to FALSE and searchProgress to 100');
+
     set({ searchResults: results, isSearching: false, searchProgress: 100 });
     return results;
   },
-  
+
   replaceAll: (searchTerm, replaceTerm) => {
     const { data, caseSensitive, selectedColumns, columns, fuzzySearch, fuzzyThreshold } = get();
     const updates = [];
-    
-    const columnsToSearch = selectedColumns.length > 0 
-      ? selectedColumns 
+
+    const columnsToSearch = selectedColumns.length > 0
+      ? selectedColumns
       : columns.map(col => col.id);
-    
-    console.log('🔄 Replace All Debug:', {
-      searchTerm,
-      replaceTerm,
-      fuzzySearch,
-      fuzzyThreshold
-    });
-    
+
     if (fuzzySearch) {
-      console.log('✨ Using FUZZY replace mode');
-      // Fuzzy replace mode
+      // Search and replace in each cell individually
       data.forEach((row, rowIndex) => {
         columnsToSearch.forEach((columnId) => {
           const cellValue = String(row[columnId] || '');
-          const match = fuzzyMatch(cellValue, searchTerm, fuzzyThreshold, caseSensitive);
-          
-          if (match && match.matched) {
-            // Replace the matched text (which might differ from search term)
-            const beforeMatch = cellValue.substring(0, match.matchIndex);
-            const afterMatch = cellValue.substring(match.matchIndex + match.matchedText.length);
+          if (!cellValue) return;
+
+          // Create Fuse instance for this single cell
+          const fuse = new Fuse([cellValue], {
+            includeScore: true,
+            includeMatches: true,
+            threshold: Math.min(0.3, 1 - fuzzyThreshold),
+            ignoreLocation: true,
+            isCaseSensitive: caseSensitive,
+            minMatchCharLength: 1
+          });
+
+          const cellResults = fuse.search(searchTerm);
+
+          if (cellResults.length > 0) {
+            // Fuse.js found a match, now find the best matching substring
+            const compareValue = caseSensitive ? cellValue : cellValue.toLowerCase();
+            const searchValue = caseSensitive ? searchTerm : searchTerm.toLowerCase();
+
+            let startPos, endPos;
+
+            // First try exact substring match
+            if (compareValue.includes(searchValue)) {
+              startPos = compareValue.indexOf(searchValue);
+              endPos = startPos + searchValue.length - 1;
+            } else {
+              // Find best matching substring
+              const searchLen = searchTerm.length;
+              let bestScore = 0;
+              let bestStart = 0;
+              let bestLength = searchLen;
+
+              for (let len = Math.floor(searchLen * 0.5); len <= Math.min(cellValue.length, searchLen * 2); len++) {
+                for (let i = 0; i <= cellValue.length - len; i++) {
+                  const substring = cellValue.substring(i, i + len);
+                  const subLower = caseSensitive ? substring : substring.toLowerCase();
+                  const score = similarityScore(subLower, searchValue);
+
+                  if (score > bestScore) {
+                    bestScore = score;
+                    bestStart = i;
+                    bestLength = len;
+                  }
+                }
+              }
+
+              startPos = bestStart;
+              endPos = bestStart + bestLength - 1;
+            }
+
+            const beforeMatch = cellValue.substring(0, startPos);
+            const afterMatch = cellValue.substring(endPos + 1);
             const newValue = beforeMatch + replaceTerm + afterMatch;
-            
-            console.log('🔄 Fuzzy replace:', {
-              original: cellValue,
-              matched: match.matchedText,
-              newValue,
-              rowIndex,
-              columnId
-            });
-            
+
             updates.push({
               rowIndex,
               columnId,
@@ -270,26 +317,23 @@ const useDataStore = create((set, get) => ({
         });
       });
     } else {
-      console.log('📝 Using EXACT replace mode');
       // Exact replace mode
       const searchValue = caseSensitive ? searchTerm : searchTerm.toLowerCase();
-      
+
       data.forEach((row, rowIndex) => {
         columnsToSearch.forEach((columnId) => {
           const cellValue = String(row[columnId] || '');
           const compareValue = caseSensitive ? cellValue : cellValue.toLowerCase();
-          
+
           if (compareValue.includes(searchValue)) {
-            // Preserve case if not case-sensitive
             let newValue;
             if (caseSensitive) {
               newValue = cellValue.replaceAll(searchTerm, replaceTerm);
             } else {
-              // Case-insensitive replace
               const regex = new RegExp(searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
               newValue = cellValue.replace(regex, replaceTerm);
             }
-            
+
             updates.push({
               rowIndex,
               columnId,
@@ -299,22 +343,20 @@ const useDataStore = create((set, get) => ({
         });
       });
     }
-    
-    console.log(`🎯 Total replacements: ${updates.length}`);
-    
+
     get().bulkUpdate(updates);
     return updates.length;
   },
-  
-  reset: () => set({ 
-    data: [], 
-    columns: [], 
+
+  reset: () => set({
+    data: [],
+    columns: [],
     originalData: [],
     searchResults: [],
     searchTerm: '',
     replaceTerm: ''
   }),
-  
+
   setIsLoading: (value) => set({ isLoading: value })
 }));
 
