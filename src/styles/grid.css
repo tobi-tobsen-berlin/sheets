@@ -244,6 +244,7 @@ body {
   border-collapse: collapse;
   width: 100%;
   font-size: 0.875rem;
+  table-layout: fixed;
 }
 
 .table-header {
@@ -261,6 +262,7 @@ body {
   border-right: 1px solid var(--border-color);
   white-space: nowrap;
   user-select: none;
+  position: relative;
 }
 
 .header-sortable {
@@ -268,10 +270,16 @@ body {
   display: flex;
   align-items: center;
   gap: 0.25rem;
+  padding-right: 8px;
 }
 
 .header-sortable:hover {
   color: var(--primary-color);
+}
+
+/* Make header content area not overlap with resizer */
+.table-header th > div:first-child {
+  padding-right: 8px;
 }
 
 /* Drag and Drop Styles */
@@ -326,6 +334,7 @@ body {
   padding: 0;
   border-right: 1px solid var(--border-color);
   height: 35px;
+  contain: layout style paint;
 }
 
 .cell-value,
@@ -339,9 +348,31 @@ body {
   line-height: 1.4;
 }
 
+/* Cell Selection - Similar to Google Sheets */
+.cell-selected {
+  background: rgba(66, 133, 244, 0.15) !important;
+  border: 2px solid #4285f4 !important;
+  box-shadow: inset 0 0 0 1px #4285f4;
+  z-index: 2;
+  position: relative;
+}
+
+.cell-selected:hover {
+  background: rgba(66, 133, 244, 0.2) !important;
+}
+
+/* Selected cells should still show search highlights */
+.cell-selected.has-match {
+  background: rgba(255, 235, 59, 0.3) !important;
+  border: 2px solid #4285f4 !important;
+}
+
 /* Better display for long text cells */
-.cell-value:hover {
+.cell-value:hover:not(.cell-selected) {
   background: rgba(59, 130, 246, 0.05);
+}
+
+.cell-value:hover {
   white-space: normal;
   word-wrap: break-word;
   max-height: 200px;
@@ -349,6 +380,22 @@ body {
   z-index: 5;
   position: relative;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Prevent text selection during drag select */
+.data-table {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+/* Allow text selection in edit mode */
+.cell-input {
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
 }
 
 /* Search Highlight Styles */
@@ -978,4 +1025,242 @@ body {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+/* Bulk Edit Dialog */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.bulk-edit-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: white;
+  border-radius: 0.5rem;
+  box-shadow: var(--shadow-lg);
+  padding: 1.5rem;
+  width: 90%;
+  max-width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+  z-index: 1000;
+  border: 1px solid var(--border-color);
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -48%);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}
+
+.bulk-edit-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.edit-mode-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: var(--header-bg);
+  border-radius: 0.375rem;
+  border: 1px solid var(--border-color);
+}
+
+.radio-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  font-weight: 400;
+  color: var(--text-primary);
+}
+
+.radio-label input[type="radio"] {
+  cursor: pointer;
+  width: 1rem;
+  height: 1rem;
+}
+
+.bulk-edit-preview {
+  padding: 1rem;
+  background: var(--header-bg);
+  border-radius: 0.375rem;
+  border: 1px solid var(--border-color);
+}
+
+.bulk-edit-preview h4 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  color: var(--text-primary);
+}
+
+.preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.preview-item {
+  padding: 0.5rem;
+  background: white;
+  border-radius: 0.25rem;
+  border: 1px solid var(--border-color);
+}
+
+.preview-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.preview-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.preview-change {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.preview-old {
+  color: #dc2626;
+  text-decoration: line-through;
+  opacity: 0.7;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preview-arrow {
+  color: var(--primary-color);
+  font-weight: bold;
+}
+
+.preview-new {
+  color: var(--success-color);
+  font-weight: 600;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preview-more {
+  padding: 0.5rem;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+textarea.form-control {
+  resize: vertical;
+  min-height: 80px;
+  font-family: inherit;
+}
+
+/* Column Resizing */
+.resizer {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  height: 100%;
+  width: 8px;
+  background: transparent;
+  cursor: col-resize !important;
+  user-select: none;
+  touch-action: none;
+  z-index: 100;
+  transition: none;
+}
+
+.resizer:hover {
+  background: var(--primary-color);
+  opacity: 0.6;
+  width: 4px;
+  right: 0;
+  transition: none;
+}
+
+.resizer.isResizing {
+  background: var(--primary-color);
+  opacity: 1;
+  width: 3px;
+  right: 0;
+  transition: none;
+}
+
+/* Performance optimizations during resize */
+.table-header th:has(.resizer.isResizing) {
+  background: rgba(66, 133, 244, 0.05);
+  will-change: width;
+  transition: none;
+}
+
+.table-header th:has(.resizer.isResizing) * {
+  user-select: none;
+  pointer-events: none;
+}
+
+.table-header th:has(.resizer.isResizing) .resizer {
+  pointer-events: auto;
+}
+
+/* Optimize table rendering during resize */
+.data-table:has(.resizer.isResizing) {
+  pointer-events: auto;
+}
+
+.data-table:has(.resizer.isResizing) .data-table td {
+  pointer-events: none;
+  transition: none;
+}
+
+.data-table:has(.resizer.isResizing) .table-row:hover {
+  background: transparent;
+}
+
+/* Force hardware acceleration for smoother resizing */
+.table-header th {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Faster cursor response */
+* {
+  cursor: inherit;
+}
+
+.resizer:active {
+  cursor: col-resize !important;
+}
+
+body:has(.resizer.isResizing) {
+  cursor: col-resize !important;
+  user-select: none;
 }

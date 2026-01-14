@@ -16,6 +16,14 @@ const EditableCell = ({ getValue, row, column, table }) => {
   const inputRef = useRef(null);
   const updateCell = useDataStore(state => state.updateCell);
   const searchResults = useDataStore(state => state.searchResults);
+  const selectCell = useDataStore(state => state.selectCell);
+  const addCellToSelection = useDataStore(state => state.addCellToSelection);
+  const selectedCells = useDataStore(state => state.selectedCells);
+  const setIsSelecting = useDataStore(state => state.setIsSelecting);
+  const isSelecting = useDataStore(state => state.isSelecting);
+  
+  // Compute if this cell is selected
+  const isSelected = selectedCells.has(`${row.index}-${column.id}`);
 
   const onBlur = useCallback(() => {
     setIsEditing(false);
@@ -34,10 +42,38 @@ const EditableCell = ({ getValue, row, column, table }) => {
     }
   }, [initialValue, onBlur]);
 
-  const onClick = useCallback(() => {
+  // Single click to select
+  const onClick = useCallback((e) => {
+    e.stopPropagation();
+    if (isEditing) return;
+    
+    const isMulti = e.ctrlKey || e.metaKey;
+    const isRange = e.shiftKey;
+    selectCell(row.index, column.id, isMulti, isRange);
+  }, [row.index, column.id, selectCell, isEditing]);
+
+  // Double click to edit
+  const onDoubleClick = useCallback((e) => {
+    e.stopPropagation();
     setIsEditing(true);
     setTimeout(() => inputRef.current?.select(), 0);
   }, []);
+
+  // Mouse enter during drag selection
+  const onMouseEnter = useCallback(() => {
+    if (isSelecting) {
+      addCellToSelection(row.index, column.id);
+    }
+  }, [isSelecting, row.index, column.id, addCellToSelection]);
+
+  // Start drag selection
+  const onMouseDown = useCallback((e) => {
+    if (isEditing) return;
+    // Only start drag on left mouse button, no modifier keys
+    if (e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+      setIsSelecting(true);
+    }
+  }, [setIsSelecting, isEditing]);
 
   // Update value when initialValue changes
   React.useEffect(() => {
@@ -99,7 +135,10 @@ const EditableCell = ({ getValue, row, column, table }) => {
   return (
     <div 
       onClick={onClick}
-      className={`cell-value ${matchInfo ? 'has-match' : ''}`}
+      onDoubleClick={onDoubleClick}
+      onMouseDown={onMouseDown}
+      onMouseEnter={onMouseEnter}
+      className={`cell-value ${matchInfo ? 'has-match' : ''} ${isSelected ? 'cell-selected' : ''}`}
       title={matchInfo ? `Match: ${Math.round(matchInfo.score * 100)}%` : String(value ?? '')}
     >
       {renderHighlightedValue()}
@@ -112,12 +151,26 @@ const DataGrid = () => {
   const columns = useDataStore(state => state.columns);
   const hiddenColumns = useDataStore(state => state.hiddenColumns);
   const searchResults = useDataStore(state => state.searchResults);
+  const setIsSelecting = useDataStore(state => state.setIsSelecting);
   const [sorting, setSorting] = useState([]);
   const [columnFilters, setColumnFilters] = useState([]);
   const [columnOrder, setColumnOrder] = useState([]);
+  const [columnSizing, setColumnSizing] = useState({});
   const [draggedColumn, setDraggedColumn] = useState(null);
   
   const tableContainerRef = useRef(null);
+
+  // Handle mouse up to stop drag selection
+  React.useEffect(() => {
+    const handleMouseUp = () => {
+      setIsSelecting(false);
+    };
+
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [setIsSelecting]);
 
   // Filter out hidden columns
   const visibleColumns = useMemo(() => {
@@ -154,13 +207,23 @@ const DataGrid = () => {
       sorting,
       columnFilters,
       columnOrder,
+      columnSizing,
     },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnOrderChange: setColumnOrder,
+    onColumnSizingChange: setColumnSizing,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    columnResizeMode: 'onChange',
+    columnResizeDirection: 'ltr',
+    enableColumnResizing: true,
+    defaultColumn: {
+      minSize: 60,
+      maxSize: 800,
+      size: 150,
+    },
     debugTable: false,
   });
 
@@ -250,43 +313,54 @@ const DataGrid = () => {
         ref={tableContainerRef}
         className="table-container"
       >
-        <table className="data-table">
+        <table 
+          className="data-table"
+          style={{
+            width: table.getTotalSize(),
+          }}
+        >
           <thead className="table-header">
             {table.getHeaderGroups().map(headerGroup => (
               <tr key={headerGroup.id}>
                 {headerGroup.headers.map(header => (
                   <th
                     key={header.id}
-                    draggable={!header.isPlaceholder}
-                    onDragStart={(e) => handleDragStart(e, header.column.id)}
                     onDragOver={handleDragOver}
                     onDrop={(e) => handleDrop(e, header.column.id)}
-                    onDragEnd={handleDragEnd}
                     className={`
                       ${draggedColumn === header.column.id ? 'dragging' : ''}
                       ${draggedColumn && draggedColumn !== header.column.id ? 'drag-target' : ''}
                     `}
                     style={{
                       width: header.getSize(),
-                      minWidth: header.column.columnDef.minSize,
-                      maxWidth: header.column.columnDef.maxSize,
+                      position: 'relative',
                     }}
                   >
                     {header.isPlaceholder ? null : (
-                      <div
-                        className={header.column.getCanSort() ? 'header-sortable' : ''}
-                        onClick={header.column.getToggleSortingHandler()}
-                      >
-                        <span className="drag-handle">⋮⋮</span>
-                        {flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
-                        {{
-                          asc: ' 🔼',
-                          desc: ' 🔽',
-                        }[header.column.getIsSorted()] ?? null}
-                      </div>
+                      <>
+                        <div
+                          draggable={true}
+                          onDragStart={(e) => handleDragStart(e, header.column.id)}
+                          onDragEnd={handleDragEnd}
+                          className={header.column.getCanSort() ? 'header-sortable' : ''}
+                          onClick={header.column.getToggleSortingHandler()}
+                        >
+                          <span className="drag-handle">⋮⋮</span>
+                          {flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
+                          {{
+                            asc: ' 🔼',
+                            desc: ' 🔽',
+                          }[header.column.getIsSorted()] ?? null}
+                        </div>
+                        <div
+                          onMouseDown={header.getResizeHandler()}
+                          onTouchStart={header.getResizeHandler()}
+                          className={`resizer ${header.column.getIsResizing() ? 'isResizing' : ''}`}
+                        />
+                      </>
                     )}
                   </th>
                 ))}

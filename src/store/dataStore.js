@@ -26,6 +26,11 @@ const useDataStore = create((set, get) => ({
   isSearching: false,
   searchProgress: 0,
 
+  // Selection state
+  selectedCells: new Set(), // Set of "rowIndex-columnId" strings
+  lastSelectedCell: null, // { rowIndex, columnId } for shift-click range selection
+  isSelecting: false, // Track if user is dragging to select
+
   // Actions
   setData: (newData) => {
     set({
@@ -354,10 +359,70 @@ const useDataStore = create((set, get) => ({
     originalData: [],
     searchResults: [],
     searchTerm: '',
-    replaceTerm: ''
+    replaceTerm: '',
+    selectedCells: new Set(),
+    lastSelectedCell: null,
+    isSelecting: false
   }),
 
-  setIsLoading: (value) => set({ isLoading: value })
+  setIsLoading: (value) => set({ isLoading: value }),
+
+  // Selection actions
+  selectCell: (rowIndex, columnId, isMulti = false, isRange = false) => {
+    set((state) => {
+      const cellKey = `${rowIndex}-${columnId}`;
+      const newSelectedCells = new Set(state.selectedCells);
+
+      if (isRange && state.lastSelectedCell) {
+        // Shift-click: select range from last selected cell to current cell
+        const startRow = Math.min(state.lastSelectedCell.rowIndex, rowIndex);
+        const endRow = Math.max(state.lastSelectedCell.rowIndex, rowIndex);
+        
+        const columns = state.columns.map(col => col.id);
+        const startColIdx = columns.indexOf(state.lastSelectedCell.columnId);
+        const endColIdx = columns.indexOf(columnId);
+        const startCol = Math.min(startColIdx, endColIdx);
+        const endCol = Math.max(startColIdx, endColIdx);
+
+        for (let r = startRow; r <= endRow; r++) {
+          for (let c = startCol; c <= endCol; c++) {
+            newSelectedCells.add(`${r}-${columns[c]}`);
+          }
+        }
+      } else if (isMulti) {
+        // Ctrl/Cmd-click: toggle cell in selection
+        if (newSelectedCells.has(cellKey)) {
+          newSelectedCells.delete(cellKey);
+        } else {
+          newSelectedCells.add(cellKey);
+        }
+      } else {
+        // Normal click: select only this cell
+        newSelectedCells.clear();
+        newSelectedCells.add(cellKey);
+      }
+
+      return {
+        selectedCells: newSelectedCells,
+        lastSelectedCell: { rowIndex, columnId }
+      };
+    });
+  },
+
+  addCellToSelection: (rowIndex, columnId) => {
+    set((state) => {
+      const cellKey = `${rowIndex}-${columnId}`;
+      const newSelectedCells = new Set(state.selectedCells);
+      newSelectedCells.add(cellKey);
+      return { selectedCells: newSelectedCells };
+    });
+  },
+
+  clearSelection: () => {
+    set({ selectedCells: new Set(), lastSelectedCell: null });
+  },
+
+  setIsSelecting: (value) => set({ isSelecting: value })
 }));
 
 export default useDataStore;

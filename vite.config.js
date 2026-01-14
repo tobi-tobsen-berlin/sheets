@@ -5,12 +5,8 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 3000,
+    open: true,
     host: true,
-    strictPort: false,
-    hmr: {
-      host: 'znzv5l-3000.csb.app',
-      clientPort: 443,
-      protocol: 'wss'
-    }
+    allowedHosts: ['all']
   }
 });

@@ -3,6 +3,7 @@ import DataGrid from './components/DataGrid';
 import SearchReplace from './components/SearchReplace';
 import CSVUploader from './components/CSVUploader';
 import ColumnSelector from './components/ColumnSelector';
+import BulkEdit from './components/BulkEdit';
 import useDataStore from './store/dataStore';
 import './styles/grid.css';
 
@@ -15,6 +16,7 @@ function App() {
       <div className="toolbar">
         <CSVUploader />
         <ColumnSelector />
+        <BulkEdit />
         <SearchReplace />
       </div>
 
