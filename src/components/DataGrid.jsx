@@ -152,11 +152,15 @@ const DataGrid = () => {
   const hiddenColumns = useDataStore(state => state.hiddenColumns);
   const searchResults = useDataStore(state => state.searchResults);
   const setIsSelecting = useDataStore(state => state.setIsSelecting);
+  const selectedCells = useDataStore(state => state.selectedCells);
+  const bulkUpdate = useDataStore(state => state.bulkUpdate);
+  const clearSelection = useDataStore(state => state.clearSelection);
   const [sorting, setSorting] = useState([]);
   const [columnFilters, setColumnFilters] = useState([]);
   const [columnOrder, setColumnOrder] = useState([]);
   const [columnSizing, setColumnSizing] = useState({});
   const [draggedColumn, setDraggedColumn] = useState(null);
+  const [pasteNotification, setPasteNotification] = useState('');
   
   const tableContainerRef = useRef(null);
 
@@ -171,6 +175,57 @@ const DataGrid = () => {
       document.removeEventListener('mouseup', handleMouseUp);
     };
   }, [setIsSelecting]);
+
+  // Handle paste (Cmd+V / Ctrl+V) to selected cells
+  React.useEffect(() => {
+    const handlePaste = async (e) => {
+      // Only handle if we have selected cells and not in an input field
+      if (selectedCells.size === 0 || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        return;
+      }
+
+      e.preventDefault();
+
+      try {
+        // Read clipboard text
+        const clipboardText = await navigator.clipboard.readText();
+        
+        if (!clipboardText) {
+          return;
+        }
+
+        // Prepare updates for all selected cells
+        const updates = [];
+        for (const cellKey of selectedCells) {
+          const [rowIndex, columnId] = cellKey.split('-');
+          updates.push({
+            rowIndex: parseInt(rowIndex),
+            columnId,
+            value: clipboardText
+          });
+        }
+
+        // Apply bulk update
+        bulkUpdate(updates);
+        
+        // Show notification
+        setPasteNotification(`Pasted to ${selectedCells.size} cell${selectedCells.size !== 1 ? 's' : ''}`);
+        setTimeout(() => setPasteNotification(''), 2000);
+        
+        // Clear selection after paste
+        clearSelection();
+      } catch (err) {
+        console.error('Paste failed:', err);
+        setPasteNotification('Paste failed - clipboard permission denied');
+        setTimeout(() => setPasteNotification(''), 2000);
+      }
+    };
+
+    document.addEventListener('paste', handlePaste);
+    return () => {
+      document.removeEventListener('paste', handlePaste);
+    };
+  }, [selectedCells, bulkUpdate, clearSelection]);
 
   // Filter out hidden columns
   const visibleColumns = useMemo(() => {
@@ -305,6 +360,11 @@ const DataGrid = () => {
             {searchResults.some(r => !r.exact) && (
               <span className="fuzzy-indicator"> (includes fuzzy matches)</span>
             )}
+          </span>
+        )}
+        {pasteNotification && (
+          <span className="paste-notification">
+            📋 {pasteNotification}
           </span>
         )}
       </div>
