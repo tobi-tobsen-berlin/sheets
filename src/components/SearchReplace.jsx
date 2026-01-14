@@ -81,7 +81,7 @@ const SearchReplace = () => {
     const count = replaceAll(searchTerm, replaceTerm);
     setReplaceCount(count);
     setMatchCount(0);
-    setMessage(`Replaced ${count} occurrence(s)`);
+    setMessage(`Replaced ${count} occurrence(s). Highlights cleared.`);
   }, [searchTerm, replaceTerm, replaceAll]);
 
   const handleClearHighlights = useCallback(() => {

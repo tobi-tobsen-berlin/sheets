@@ -5,7 +5,7 @@ const ColumnSelector = () => {
   const columns = useDataStore(state => state.columns);
   const hiddenColumns = useDataStore(state => state.hiddenColumns);
   const setHiddenColumns = useDataStore(state => state.setHiddenColumns);
-  
+
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -49,7 +49,7 @@ const ColumnSelector = () => {
         title="Show/Hide Columns"
       >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M0 2h16v2H0V2zm0 5h16v2H0V7zm0 5h16v2H0v-2z"/>
+          <path d="M0 2h16v2H0V2zm0 5h16v2H0V7zm0 5h16v2H0v-2z" />
         </svg>
         <span>Columns ({visibleCount}/{columns.length})</span>
       </button>
@@ -60,7 +60,7 @@ const ColumnSelector = () => {
             <button onClick={showAll} className="link-button">Show All</button>
             <button onClick={hideAll} className="link-button">Hide All</button>
           </div>
-          
+
           <div className="column-selector-list">
             {columns.map(column => (
               <label key={column.id} className="column-selector-item">

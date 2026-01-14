@@ -253,6 +253,9 @@ const useDataStore = create((set, get) => ({
     const columnsToSearch = selectedColumns.length > 0
       ? selectedColumns
       : columns.map(col => col.id);
+    
+    // Clear search results before replacing since data will change
+    set({ searchResults: [] });
 
     if (fuzzySearch) {
       // Search and replace in each cell individually

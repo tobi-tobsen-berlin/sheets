@@ -45,7 +45,8 @@ const CSVUploader = () => {
 
     try {
       const sampleData = generateSampleData(rowCount);
-      const sampleColumns = getSampleColumns();
+      // Pass sample data to calculate content-aware column sizes
+      const sampleColumns = getSampleColumns(sampleData);
       
       setData(sampleData);
       setColumns(sampleColumns);

@@ -181,40 +181,90 @@ export const generateSampleData = (rowCount = 10000) => {
 };
 
 /**
- * Get column definitions for artwork data
+ * Calculate optimal column width based on header text length and sample content
+ * @param {string} headerText - The column header text
+ * @param {Array} sampleData - Sample data to check content length
+ * @param {string} columnId - Column identifier to access data
+ * @param {object} options - Override options for special cases
+ * @returns {number} Calculated width in pixels
  */
-export const getSampleColumns = () => {
-  return [
-    { id: 'objectId', accessorKey: 'objectId', header: 'Object ID', size: 100 },
-    { id: 'artist', accessorKey: 'artist', header: 'Artist', size: 180 },
-    { id: 'title', accessorKey: 'title', header: 'Title', size: 200 },
-    { id: 'creationDate', accessorKey: 'creationDate', header: 'Year', size: 80 },
-    { id: 'medium', accessorKey: 'medium', header: 'Medium', size: 200 },
-    { id: 'dimensions', accessorKey: 'dimensions', header: 'Dimensions', size: 150 },
-    { id: 'height', accessorKey: 'height', header: 'Height', size: 80 },
-    { id: 'width', accessorKey: 'width', header: 'Width', size: 80 },
-    { id: 'depth', accessorKey: 'depth', header: 'Depth', size: 80 },
-    { id: 'units', accessorKey: 'units', header: 'Units', size: 60 },
-    { id: 'category', accessorKey: 'category', header: 'Category', size: 140 },
-    { id: 'subCategory', accessorKey: 'subCategory', header: 'Sub-Category', size: 150 },
-    { id: 'genre', accessorKey: 'genre', header: 'Genre', size: 200 },
-    { id: 'subject', accessorKey: 'subject', header: 'Subject', size: 120 },
-    { id: 'signature', accessorKey: 'signature', header: 'Signature', size: 100 },
-    { id: 'location', accessorKey: 'location', header: 'Location', size: 140 },
-    { id: 'subLocation', accessorKey: 'subLocation', header: 'Sub-Location', size: 140 },
-    { id: 'condition', accessorKey: 'condition', header: 'Condition', size: 120 },
-    { id: 'fmvValue', accessorKey: 'fmvValue', header: 'FMV Value', size: 120 },
-    { id: 'fmvCurrency', accessorKey: 'fmvCurrency', header: 'Currency', size: 80 },
-    { id: 'provenance', accessorKey: 'provenance', header: 'Provenance', size: 150 },
-    { id: 'clientReference', accessorKey: 'clientReference', header: 'Client Ref', size: 120 },
-    { id: 'description', accessorKey: 'description', header: 'Description', size: 400 },
-    { id: 'notes', accessorKey: 'notes', header: 'Notes', size: 400 }
-  ].map(col => ({
+const calculateColumnSize = (headerText, sampleData = [], columnId = '', options = {}) => {
+  const {
+    minSize = 100, // More generous minimum width
+    maxSize = 500,
+    charWidth = 10, // Increased from 8 to 10 for more breathing room
+    padding = 60, // Increased from 40 to 60 for sort icons, drag handles, resizer
+  } = options;
+  
+  // Calculate width based on header text
+  const headerWidth = headerText.length * charWidth + padding;
+  
+  // If we have sample data, check content length
+  let contentWidth = headerWidth;
+  if (sampleData.length > 0 && columnId) {
+    // Sample first 10 rows to get average content length
+    const sampleSize = Math.min(10, sampleData.length);
+    let maxContentLength = 0;
+    
+    for (let i = 0; i < sampleSize; i++) {
+      const value = sampleData[i][columnId];
+      if (value !== null && value !== undefined) {
+        const strValue = String(value);
+        maxContentLength = Math.max(maxContentLength, strValue.length);
+      }
+    }
+    
+    // Calculate content width (use 85% of actual content length for better fit)
+    contentWidth = Math.floor(maxContentLength * charWidth * 0.85) + padding;
+  }
+  
+  // Use the larger of header width or content width
+  const calculatedWidth = Math.max(headerWidth, contentWidth);
+  
+  // Clamp between min and max
+  return Math.max(minSize, Math.min(maxSize, calculatedWidth));
+};
+
+/**
+ * Get column definitions for artwork data
+ * @param {Array} sampleData - Optional sample data to calculate content-aware sizes
+ */
+export const getSampleColumns = (sampleData = null) => {
+  const columns = [
+    { id: 'objectId', accessorKey: 'objectId', header: 'Object ID' },
+    { id: 'artist', accessorKey: 'artist', header: 'Artist' },
+    { id: 'title', accessorKey: 'title', header: 'Title' },
+    { id: 'creationDate', accessorKey: 'creationDate', header: 'Year' },
+    { id: 'medium', accessorKey: 'medium', header: 'Medium' },
+    { id: 'dimensions', accessorKey: 'dimensions', header: 'Dimensions' },
+    { id: 'height', accessorKey: 'height', header: 'Height' },
+    { id: 'width', accessorKey: 'width', header: 'Width' },
+    { id: 'depth', accessorKey: 'depth', header: 'Depth' },
+    { id: 'units', accessorKey: 'units', header: 'Units' },
+    { id: 'category', accessorKey: 'category', header: 'Category' },
+    { id: 'subCategory', accessorKey: 'subCategory', header: 'Sub-Category' },
+    { id: 'genre', accessorKey: 'genre', header: 'Genre' },
+    { id: 'subject', accessorKey: 'subject', header: 'Subject' },
+    { id: 'signature', accessorKey: 'signature', header: 'Signature' },
+    { id: 'location', accessorKey: 'location', header: 'Location' },
+    { id: 'subLocation', accessorKey: 'subLocation', header: 'Sub-Location' },
+    { id: 'condition', accessorKey: 'condition', header: 'Condition' },
+    { id: 'fmvValue', accessorKey: 'fmvValue', header: 'FMV Value' },
+    { id: 'fmvCurrency', accessorKey: 'fmvCurrency', header: 'Currency' },
+    { id: 'provenance', accessorKey: 'provenance', header: 'Provenance' },
+    { id: 'clientReference', accessorKey: 'clientReference', header: 'Client Ref' },
+    // Special cases: text fields need more space
+    { id: 'description', accessorKey: 'description', header: 'Description', size: 300 },
+    { id: 'notes', accessorKey: 'notes', header: 'Notes', size: 300 }
+  ];
+
+  return columns.map(col => ({
     ...col,
+    size: col.size || calculateColumnSize(col.header, sampleData, col.id),
     cell: info => info.getValue(),
     enableSorting: true,
     enableColumnFilter: true,
-    minSize: 60,
+    minSize: 100,
     maxSize: 500
   }));
 };

@@ -1,6 +1,48 @@
 import Papa from 'papaparse';
 
 /**
+ * Calculate optimal column width based on header text length and sample content
+ * @param {string} headerText - The column header text
+ * @param {Array} sampleData - Sample data to check content length
+ * @param {string} columnId - Column identifier to access data
+ * @returns {number} Calculated width in pixels
+ */
+const calculateColumnSize = (headerText, sampleData = [], columnId = '') => {
+  const charWidth = 10; // Increased from 8 to 10 for more breathing room
+  const padding = 60; // Increased from 40 to 60 for sort icons, drag handles, resizer
+  const minSize = 100; // More generous minimum width
+  const maxSize = 500;
+  
+  // Calculate width based on header text
+  const headerWidth = headerText.length * charWidth + padding;
+  
+  // If we have sample data, check content length
+  let contentWidth = headerWidth;
+  if (sampleData.length > 0 && columnId) {
+    // Sample first 10 rows to get average content length
+    const sampleSize = Math.min(10, sampleData.length);
+    let maxContentLength = 0;
+    
+    for (let i = 0; i < sampleSize; i++) {
+      const value = sampleData[i][columnId];
+      if (value !== null && value !== undefined) {
+        const strValue = String(value);
+        maxContentLength = Math.max(maxContentLength, strValue.length);
+      }
+    }
+    
+    // Calculate content width (use 85% of actual content length for better fit)
+    contentWidth = Math.floor(maxContentLength * charWidth * 0.85) + padding;
+  }
+  
+  // Use the larger of header width or content width
+  const calculatedWidth = Math.max(headerWidth, contentWidth);
+  
+  // Clamp between min and max
+  return Math.max(minSize, Math.min(maxSize, calculatedWidth));
+};
+
+/**
  * Parse CSV file and return normalized data structure
  */
 export const parseCSV = (file) => {
@@ -22,8 +64,8 @@ export const parseCSV = (file) => {
           cell: info => info.getValue(),
           enableSorting: true,
           enableColumnFilter: true,
-          size: 150,
-          minSize: 60,
+          size: calculateColumnSize(field, data, field),
+          minSize: 100,
           maxSize: 500
         }));
         
